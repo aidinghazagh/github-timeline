@@ -15,17 +15,24 @@ import type { ContributionCalendar, TimeRange } from '@/types/github';
 
 interface ContributionTimelineProps {
   calendar: ContributionCalendar;
+  hasToken?: boolean;
 }
 
-const timeRanges: { value: TimeRange; label: string }[] = [
+const allRanges: { value: TimeRange; label: string }[] = [
   { value: '1m', label: '1M' },
   { value: '90d', label: '90D' },
   { value: '1y', label: '1Y' },
   { value: 'all', label: 'All' },
 ];
 
-export function ContributionTimeline({ calendar }: ContributionTimelineProps) {
-  const [range, setRange] = useState<TimeRange>('all');
+const publicRanges: { value: TimeRange; label: string }[] = [
+  { value: '1m', label: '1M' },
+  { value: '90d', label: '90D' },
+];
+
+export function ContributionTimeline({ calendar, hasToken }: ContributionTimelineProps) {
+  const timeRanges = hasToken ? allRanges : publicRanges;
+  const [range, setRange] = useState<TimeRange>(hasToken ? 'all' : '90d');
 
   const chartData = useMemo(() => {
     const allDays = calendar.weeks

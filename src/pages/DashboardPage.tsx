@@ -137,12 +137,55 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {/* Token prompt banner */}
+        {!token && !showTokenInput && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-5"
+          >
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Key className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground mb-1">
+                    Limited data — unlock full history with a token
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Without a token, only the last ~90 days of activity are shown.
+                    Add a GitHub Personal Access Token to see your complete contribution history, PR/issue/review counts, and yearly trends.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">How to get one:</span>{' '}
+                    Go to{' '}
+                    <a
+                      href="https://github.com/settings/tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      github.com/settings/tokens
+                    </a>{' '}
+                    &rarr; Generate new token (classic) &rarr; Select <code className="bg-muted px-1 rounded">read:user</code> scope &rarr; Copy and paste below.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTokenInput(true)}
+                className="shrink-0 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                Add Token
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Token input modal */}
         {showTokenInput && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-xl border border-border bg-card p-4"
+            className="mb-6 rounded-xl border border-border bg-card p-5"
           >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-foreground">
@@ -155,10 +198,36 @@ export function DashboardPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Optional. Enables higher API rate limits and full contribution data.
-              Token stays in your browser only — never sent anywhere except GitHub.
-            </p>
+            <div className="text-xs text-muted-foreground mb-4 space-y-2">
+              <p>
+                <span className="font-medium text-foreground">Step 1:</span>{' '}
+                Go to{' '}
+                <a
+                  href="https://github.com/settings/tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  github.com/settings/tokens
+                </a>
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Step 2:</span>{' '}
+                Click "Generate new token" &rarr; "Generate new token (classic)"
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Step 3:</span>{' '}
+                Give it a name (e.g. "CommitScope"), set expiration, and check the{' '}
+                <code className="bg-muted px-1 rounded">read:user</code> scope
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Step 4:</span>{' '}
+                Copy the token and paste it below
+              </p>
+              <p className="text-green-500/80">
+                Your token never leaves your browser — it's only sent directly to GitHub's API.
+              </p>
+            </div>
             <div className="flex gap-2">
               <input
                 type="password"
@@ -214,6 +283,7 @@ export function DashboardPage() {
                 userQuery.data.user.contributionsCollection
                   .contributionCalendar
               }
+              hasToken={!!token}
             />
 
             <StatsGrid
