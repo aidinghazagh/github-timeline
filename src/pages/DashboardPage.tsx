@@ -67,8 +67,19 @@ export function DashboardPage() {
 
   function handleShare() {
     const base = import.meta.env.BASE_URL || '/';
-    const url = `${window.location.origin}${base}?user=${username}`;
-    navigator.clipboard.writeText(url);
+    const url = `${window.location.origin}${base}#/?user=${username}`;
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Link copied to clipboard!');
+    }).catch(() => {
+      // Fallback: select from a temporary input
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      alert('Link copied to clipboard!');
+    });
   }
 
   const isLoading = userQuery.isLoading || reposQuery.isLoading;
@@ -202,26 +213,27 @@ export function DashboardPage() {
           >
             <ProfileCard user={userQuery.data.user} />
 
+            {hasContributions && (
+              <ContributionTimeline
+                calendar={
+                  userQuery.data.user.contributionsCollection
+                    .contributionCalendar
+                }
+              />
+            )}
+
             <StatsGrid
               contributions={userQuery.data.user.contributionsCollection}
               repos={reposQuery.data}
             />
 
             {hasContributions && (
-              <>
-                <ContributionHeatmap
-                  calendar={
-                    userQuery.data.user.contributionsCollection
-                      .contributionCalendar
-                  }
-                />
-                <ContributionTimeline
-                  calendar={
-                    userQuery.data.user.contributionsCollection
-                      .contributionCalendar
-                  }
-                />
-              </>
+              <ContributionHeatmap
+                calendar={
+                  userQuery.data.user.contributionsCollection
+                    .contributionCalendar
+                }
+              />
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

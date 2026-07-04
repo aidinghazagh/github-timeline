@@ -47,7 +47,7 @@ async function fetchContributionsFromPage(
 
     const contributions: ContributionDay[] = contribMatches.map((m) => ({
       date: m[1],
-      contributionCount: parseInt(m[2], 10),
+      contributionCount: parseInt(m[3], 10),
       color: '',
     }));
 
