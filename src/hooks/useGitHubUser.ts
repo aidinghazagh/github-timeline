@@ -34,35 +34,42 @@ async function fetchContributionsFromPage(
   if (!res.ok) throw new Error('Failed to fetch contributions');
   const html = await res.text();
 
-  const years: ContributionYear[] = [];
-  const yearBlocks = html.split('js-year-link');
+  // GitHub's contributions page puts the count in <tool-tip> text after each <td>.
+  // Format: <td ... data-date="2025-06-29" ...></td>\n  <tool-tip ...>7 contributions on June 29th.</tool-tip>
+  // Or for zero days: "No contributions on September 1st."
+  const entryRegex =
+    /data-date="(\d{4}-\d{2}-\d{2})"[^]*?>([^<]*contribution[s]? on [^<]*)<\/tool-tip>/gi;
 
-  for (const block of yearBlocks) {
-    const contribMatches = [
-      ...block.matchAll(
-        /data-date="(\d{4}-\d{2}-\d{2})"[^>]*data-level="(\d+)"[^>]*data-count="(\d+)"/g
-      ),
-    ];
-    if (contribMatches.length === 0) continue;
+  const contributions: ContributionDay[] = [];
 
-    const contributions: ContributionDay[] = contribMatches.map((m) => ({
-      date: m[1],
-      contributionCount: parseInt(m[3], 10),
-      color: '',
-    }));
+  for (const match of html.matchAll(entryRegex)) {
+    const date = match[1];
+    const text = match[2].trim();
 
-    const total = contributions.reduce((s, d) => s + d.contributionCount, 0);
-    years.push({
+    let count = 0;
+    if (!text.startsWith('No ')) {
+      const countMatch = text.match(/^(\d+)\s/);
+      if (countMatch) count = parseInt(countMatch[1], 10);
+    }
+
+    contributions.push({ date, contributionCount: count, color: '' });
+  }
+
+  if (contributions.length === 0) return [];
+
+  contributions.sort((a, b) => a.date.localeCompare(b.date));
+
+  const total = contributions.reduce((s, d) => s + d.contributionCount, 0);
+  return [
+    {
       total,
       range: {
         start: contributions[0].date,
         end: contributions[contributions.length - 1].date,
       },
       contributions,
-    });
-  }
-
-  return years;
+    },
+  ];
 }
 
 function convertRestToGraphQLUser(
