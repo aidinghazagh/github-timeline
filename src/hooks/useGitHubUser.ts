@@ -28,16 +28,26 @@ interface GitHubEvent {
   };
 }
 
+interface EventsResult {
+  contributions: ContributionDay[];
+  pullRequests: number;
+  issues: number;
+  reviews: number;
+}
+
 async function fetchContributionsFromEvents(
   username: string,
   token?: string
-): Promise<ContributionDay[]> {
+): Promise<EventsResult> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const dateCountMap = new Map<string, number>();
+  let pullRequests = 0;
+  let issues = 0;
+  let reviews = 0;
   const maxPages = 10;
 
   for (let page = 1; page <= maxPages; page++) {
@@ -62,10 +72,19 @@ async function fetchContributionsFromEvents(
               (event.payload.commits?.length || 1)
           );
           break;
-        case 'CreateEvent':
-        case 'IssuesEvent':
         case 'PullRequestEvent':
+          pullRequests++;
+          dateCountMap.set(date, (dateCountMap.get(date) || 0) + 1);
+          break;
+        case 'IssuesEvent':
+          issues++;
+          dateCountMap.set(date, (dateCountMap.get(date) || 0) + 1);
+          break;
         case 'PullRequestReviewEvent':
+          reviews++;
+          dateCountMap.set(date, (dateCountMap.get(date) || 0) + 1);
+          break;
+        case 'CreateEvent':
         case 'IssueCommentEvent':
         case 'ReleaseEvent':
         case 'PublicEvent':
@@ -78,23 +97,43 @@ async function fetchContributionsFromEvents(
     if (events.length < 100) break;
   }
 
-  return Array.from(dateCountMap.entries())
+  const contributions = Array.from(dateCountMap.entries())
     .map(([date, count]) => ({ date, contributionCount: count, color: '' }))
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  return { contributions, pullRequests, issues, reviews };
 }
 
-function buildContributionCalendar(
-  contributions: ContributionDay[]
+function buildFullCalendar(
+  contributions: ContributionDay[],
+  startDate: string,
+  endDate: string
 ): { weeks: { contributionDays: ContributionDay[] }[]; totalContributions: number } {
-  if (contributions.length === 0) {
-    return { weeks: [], totalContributions: 0 };
+  // Fill in missing dates with 0 contributions so streaks work correctly
+  const countMap = new Map<string, number>();
+  for (const d of contributions) {
+    countMap.set(d.date, d.contributionCount);
   }
 
-  // Build weeks: GitHub starts weeks on Sunday
+  const allDays: ContributionDay[] = [];
+  const current = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+
+  while (current <= end) {
+    const dateStr = current.toISOString().substring(0, 10);
+    allDays.push({
+      date: dateStr,
+      contributionCount: countMap.get(dateStr) || 0,
+      color: '',
+    });
+    current.setDate(current.getDate() + 1);
+  }
+
+  // Build weeks starting on Sunday
   const weeks: { contributionDays: ContributionDay[] }[] = [];
   let currentWeek: ContributionDay[] = [];
 
-  for (const day of contributions) {
+  for (const day of allDays) {
     const dayOfWeek = new Date(day.date + 'T00:00:00').getDay();
     if (dayOfWeek === 0 && currentWeek.length > 0) {
       weeks.push({ contributionDays: currentWeek });
@@ -106,19 +145,30 @@ function buildContributionCalendar(
     weeks.push({ contributionDays: currentWeek });
   }
 
-  const totalContributions = contributions.reduce(
-    (s, d) => s + d.contributionCount,
-    0
-  );
-
+  const totalContributions = allDays.reduce((s, d) => s + d.contributionCount, 0);
   return { weeks, totalContributions };
 }
 
 function convertRestToGraphQLUser(
   rest: RestUser,
-  contributions: ContributionDay[]
+  events: EventsResult
 ): UserProfileData {
-  const calendar = buildContributionCalendar(contributions);
+  // Build calendar from ~90 days of events data
+  const today = new Date().toISOString().substring(0, 10);
+  const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .substring(0, 10);
+
+  const calendar = buildFullCalendar(
+    events.contributions,
+    threeMonthsAgo,
+    today
+  );
+
+  // Calculate active years from account creation
+  const createdYear = new Date(rest.created_at).getFullYear();
+  const currentYear = new Date().getFullYear();
+  const activeYears = currentYear - createdYear + 1;
 
   return {
     user: {
@@ -140,9 +190,9 @@ function convertRestToGraphQLUser(
           totalContributions: calendar.totalContributions,
         },
         totalCommitContributions: calendar.totalContributions,
-        totalIssueContributions: 0,
-        totalPullRequestContributions: 0,
-        totalPullRequestReviewContributions: 0,
+        totalIssueContributions: events.issues,
+        totalPullRequestContributions: events.pullRequests,
+        totalPullRequestReviewContributions: events.reviews,
         restrictedContributionsCount: 0,
       },
     },
@@ -178,8 +228,8 @@ export function useGitHubUser(login: string, token?: string) {
         );
         if (!data.user) throw new Error('User not found');
       } else {
-        // Public: use REST API + Events API for contributions
-        const [restUser, contributions] = await Promise.all([
+        // Public: use REST API + Events API
+        const [restUser, events] = await Promise.all([
           fetch(`https://api.github.com/users/${login}`).then((r) => {
             if (!r.ok) {
               if (r.status === 404) throw new Error('User not found');
@@ -189,10 +239,15 @@ export function useGitHubUser(login: string, token?: string) {
             }
             return r.json() as Promise<RestUser>;
           }),
-          fetchContributionsFromEvents(login, token).catch(() => []),
+          fetchContributionsFromEvents(login, token).catch(() => ({
+            contributions: [],
+            pullRequests: 0,
+            issues: 0,
+            reviews: 0,
+          })),
         ]);
 
-        data = convertRestToGraphQLUser(restUser, contributions);
+        data = convertRestToGraphQLUser(restUser, events);
       }
 
       setCache(cacheKey, data);

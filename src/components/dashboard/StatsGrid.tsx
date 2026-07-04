@@ -13,9 +13,10 @@ import type { ContributionsCollection, GitHubRepo } from '@/types/github';
 interface StatsGridProps {
   contributions: ContributionsCollection;
   repos: GitHubRepo[];
+  createdAt: string;
 }
 
-export function StatsGrid({ contributions, repos }: StatsGridProps) {
+export function StatsGrid({ contributions, repos, createdAt }: StatsGridProps) {
   const totalStars = repos.reduce((sum, r) => sum + r.stargazerCount, 0);
   const totalForks = repos.reduce((sum, r) => sum + r.forkCount, 0);
 
@@ -28,16 +29,22 @@ export function StatsGrid({ contributions, repos }: StatsGridProps) {
   let longestStreak = 0;
   let tempStreak = 0;
 
+  // Current streak: count backwards from today
+  const today = new Date().toISOString().substring(0, 10);
   for (let i = allDays.length - 1; i >= 0; i--) {
+    if (allDays[i].date > today) continue; // skip future dates
     if (allDays[i].contributionCount > 0) {
-      if (i === allDays.length - 1 || currentStreak > 0) {
-        currentStreak++;
-      }
+      currentStreak++;
     } else {
-      if (currentStreak > 0) break;
+      // Allow today to be 0 (day not over yet) if yesterday had contributions
+      if (allDays[i].date === today && i > 0 && allDays[i - 1].contributionCount > 0) {
+        continue;
+      }
+      break;
     }
   }
 
+  // Longest streak
   for (const day of allDays) {
     if (day.contributionCount > 0) {
       tempStreak++;
@@ -47,9 +54,10 @@ export function StatsGrid({ contributions, repos }: StatsGridProps) {
     }
   }
 
-  // Count active years
-  const years = new Set(allDays.map((d) => d.date.substring(0, 4)));
-  const activeYears = years.size;
+  // Active years from account creation
+  const createdYear = new Date(createdAt).getFullYear();
+  const currentYear = new Date().getFullYear();
+  const activeYears = Math.max(currentYear - createdYear + 1, 1);
 
   const stats = [
     { label: 'Repositories', value: repos.length, icon: <GitFork className="h-5 w-5" /> },

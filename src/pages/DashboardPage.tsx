@@ -225,6 +225,7 @@ export function DashboardPage() {
             <StatsGrid
               contributions={userQuery.data.user.contributionsCollection}
               repos={reposQuery.data}
+              createdAt={userQuery.data.user.createdAt}
             />
 
             {hasContributions && (
