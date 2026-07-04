@@ -19,80 +19,106 @@ interface RestUser {
   html_url: string;
 }
 
-interface ContributionYear {
-  total: number;
-  range: { start: string; end: string };
-  contributions: ContributionDay[];
+interface GitHubEvent {
+  type: string;
+  created_at: string;
+  payload: {
+    commits?: { sha: string }[];
+    action?: string;
+  };
 }
 
-async function fetchContributionsFromPage(
-  username: string
-): Promise<ContributionYear[]> {
-  const res = await fetch(
-    `https://github.com/users/${username}/contributions`
-  );
-  if (!res.ok) throw new Error('Failed to fetch contributions');
-  const html = await res.text();
+async function fetchContributionsFromEvents(
+  username: string,
+  token?: string
+): Promise<ContributionDay[]> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  // GitHub's contributions page puts the count in <tool-tip> text after each <td>.
-  // Format: <td ... data-date="2025-06-29" ...></td>\n  <tool-tip ...>7 contributions on June 29th.</tool-tip>
-  // Or for zero days: "No contributions on September 1st."
-  const entryRegex =
-    /data-date="(\d{4}-\d{2}-\d{2})"[^]*?>([^<]*contribution[s]? on [^<]*)<\/tool-tip>/gi;
+  const dateCountMap = new Map<string, number>();
+  const maxPages = 10;
 
-  const contributions: ContributionDay[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const res = await fetch(
+      `https://api.github.com/users/${username}/events/public?per_page=100&page=${page}`,
+      { headers }
+    );
 
-  for (const match of html.matchAll(entryRegex)) {
-    const date = match[1];
-    const text = match[2].trim();
+    if (!res.ok) break;
 
-    let count = 0;
-    if (!text.startsWith('No ')) {
-      const countMatch = text.match(/^(\d+)\s/);
-      if (countMatch) count = parseInt(countMatch[1], 10);
+    const events: GitHubEvent[] = await res.json();
+    if (events.length === 0) break;
+
+    for (const event of events) {
+      const date = event.created_at.substring(0, 10);
+
+      switch (event.type) {
+        case 'PushEvent':
+          dateCountMap.set(
+            date,
+            (dateCountMap.get(date) || 0) +
+              (event.payload.commits?.length || 1)
+          );
+          break;
+        case 'CreateEvent':
+        case 'IssuesEvent':
+        case 'PullRequestEvent':
+        case 'PullRequestReviewEvent':
+        case 'IssueCommentEvent':
+        case 'ReleaseEvent':
+        case 'PublicEvent':
+        case 'GollumEvent':
+          dateCountMap.set(date, (dateCountMap.get(date) || 0) + 1);
+          break;
+      }
     }
 
-    contributions.push({ date, contributionCount: count, color: '' });
+    if (events.length < 100) break;
   }
 
-  if (contributions.length === 0) return [];
-
-  contributions.sort((a, b) => a.date.localeCompare(b.date));
-
-  const total = contributions.reduce((s, d) => s + d.contributionCount, 0);
-  return [
-    {
-      total,
-      range: {
-        start: contributions[0].date,
-        end: contributions[contributions.length - 1].date,
-      },
-      contributions,
-    },
-  ];
+  return Array.from(dateCountMap.entries())
+    .map(([date, count]) => ({ date, contributionCount: count, color: '' }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function convertRestToGraphQLUser(
-  rest: RestUser,
-  contributions: ContributionYear[]
-): UserProfileData {
-  const allContributions = contributions.flatMap((y) => y.contributions);
-  const totalContributions = contributions.reduce((s, y) => s + y.total, 0);
+function buildContributionCalendar(
+  contributions: ContributionDay[]
+): { weeks: { contributionDays: ContributionDay[] }[]; totalContributions: number } {
+  if (contributions.length === 0) {
+    return { weeks: [], totalContributions: 0 };
+  }
 
-  // Build weeks from flat contribution list
+  // Build weeks: GitHub starts weeks on Sunday
   const weeks: { contributionDays: ContributionDay[] }[] = [];
   let currentWeek: ContributionDay[] = [];
-  for (const day of allContributions) {
-    currentWeek.push(day);
+
+  for (const day of contributions) {
     const dayOfWeek = new Date(day.date + 'T00:00:00').getDay();
-    if (dayOfWeek === 6) {
+    if (dayOfWeek === 0 && currentWeek.length > 0) {
       weeks.push({ contributionDays: currentWeek });
       currentWeek = [];
     }
+    currentWeek.push(day);
   }
   if (currentWeek.length > 0) {
     weeks.push({ contributionDays: currentWeek });
   }
+
+  const totalContributions = contributions.reduce(
+    (s, d) => s + d.contributionCount,
+    0
+  );
+
+  return { weeks, totalContributions };
+}
+
+function convertRestToGraphQLUser(
+  rest: RestUser,
+  contributions: ContributionDay[]
+): UserProfileData {
+  const calendar = buildContributionCalendar(contributions);
 
   return {
     user: {
@@ -110,10 +136,10 @@ function convertRestToGraphQLUser(
       url: rest.html_url,
       contributionsCollection: {
         contributionCalendar: {
-          weeks,
-          totalContributions,
+          weeks: calendar.weeks,
+          totalContributions: calendar.totalContributions,
         },
-        totalCommitContributions: totalContributions,
+        totalCommitContributions: calendar.totalContributions,
         totalIssueContributions: 0,
         totalPullRequestContributions: 0,
         totalPullRequestReviewContributions: 0,
@@ -152,7 +178,7 @@ export function useGitHubUser(login: string, token?: string) {
         );
         if (!data.user) throw new Error('User not found');
       } else {
-        // Public: use REST + contributions page scraping
+        // Public: use REST API + Events API for contributions
         const [restUser, contributions] = await Promise.all([
           fetch(`https://api.github.com/users/${login}`).then((r) => {
             if (!r.ok) {
@@ -163,7 +189,7 @@ export function useGitHubUser(login: string, token?: string) {
             }
             return r.json() as Promise<RestUser>;
           }),
-          fetchContributionsFromPage(login).catch(() => []),
+          fetchContributionsFromEvents(login, token).catch(() => []),
         ]);
 
         data = convertRestToGraphQLUser(restUser, contributions);
