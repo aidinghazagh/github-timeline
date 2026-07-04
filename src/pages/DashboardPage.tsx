@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Share2, ExternalLink, Key, X } from 'lucide-react';
 import { useGitHubUser } from '@/hooks/useGitHubUser';
+import { TOKEN_KEY } from '@/utils/constants';
 import { useGitHubRepos } from '@/hooks/useGitHubRepos';
 import { useRecentSearches } from '@/hooks/useRecentSearches';
 import { ProfileCard } from '@/components/dashboard/ProfileCard';
@@ -14,8 +15,6 @@ import { RepoExplorer } from '@/components/dashboard/RepoExplorer';
 import { JourneyTimeline } from '@/components/dashboard/JourneyTimeline';
 import { SkeletonCard } from '@/components/shared/SkeletonCard';
 import { ErrorCard } from '@/components/shared/ErrorCard';
-
-const TOKEN_KEY = 'commitscope:gh-token';
 
 export function DashboardPage() {
   const [searchParams] = useSearchParams();

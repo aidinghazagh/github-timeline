@@ -19,6 +19,9 @@ export async function graphqlQuery<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('INVALID_TOKEN');
+    }
     const body = await res.text();
     throw new Error(`GitHub GraphQL error (${res.status}): ${body}`);
   }

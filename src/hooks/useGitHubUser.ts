@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { graphqlQuery } from '@/api/graphql';
 import { getCached, setCache } from '@/api/cache';
 import { USER_CONTRIBUTIONS_QUERY } from '@/api/queries';
-import type { UserProfileData, ContributionDay } from '@/types/github';
+import { TOKEN_KEY } from '@/utils/constants';
+import type { UserProfileData, ContributionDay, ContributionWeek } from '@/types/github';
 
 interface RestUser {
   login: string;
@@ -30,6 +31,12 @@ interface EventsResult {
   pullRequests: number;
   issues: number;
   reviews: number;
+}
+
+function clearToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {}
 }
 
 async function fetchContributionsFromEvents(
@@ -105,8 +112,7 @@ function buildFullCalendar(
   contributions: ContributionDay[],
   startDate: string,
   endDate: string
-): { weeks: { contributionDays: ContributionDay[] }[]; totalContributions: number } {
-  // Fill in missing dates with 0 contributions so streaks work correctly
+): { weeks: ContributionWeek[]; totalContributions: number } {
   const countMap = new Map<string, number>();
   for (const d of contributions) {
     countMap.set(d.date, d.contributionCount);
@@ -126,8 +132,7 @@ function buildFullCalendar(
     current.setDate(current.getDate() + 1);
   }
 
-  // Build weeks starting on Sunday
-  const weeks: { contributionDays: ContributionDay[] }[] = [];
+  const weeks: ContributionWeek[] = [];
   let currentWeek: ContributionDay[] = [];
 
   for (const day of allDays) {
@@ -146,27 +151,105 @@ function buildFullCalendar(
   return { weeks, totalContributions };
 }
 
-function convertRestToGraphQLUser(
-  rest: RestUser,
-  events: EventsResult
-): UserProfileData {
-  // Build calendar from ~90 days of events data
-  const today = new Date().toISOString().substring(0, 10);
-  const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .substring(0, 10);
+function mergeCalendars(
+  calendars: { weeks: ContributionWeek[]; totalContributions: number }[]
+): { weeks: ContributionWeek[]; totalContributions: number } {
+  const allContributions: ContributionDay[] = [];
+  let total = 0;
 
-  const calendar = buildFullCalendar(
-    events.contributions,
-    threeMonthsAgo,
-    today
+  for (const cal of calendars) {
+    for (const week of cal.weeks) {
+      allContributions.push(...week.contributionDays);
+    }
+    total += cal.totalContributions;
+  }
+
+  // Deduplicate by date (keep highest count)
+  const deduped = new Map<string, ContributionDay>();
+  for (const d of allContributions) {
+    const existing = deduped.get(d.date);
+    if (!existing || d.contributionCount > existing.contributionCount) {
+      deduped.set(d.date, d);
+    }
+  }
+
+  const sorted = Array.from(deduped.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
   );
 
-  // Calculate active years from account creation
-  const createdYear = new Date(rest.created_at).getFullYear();
-  const currentYear = new Date().getFullYear();
-  const activeYears = currentYear - createdYear + 1;
+  // Rebuild weeks
+  const weeks: ContributionWeek[] = [];
+  let currentWeek: ContributionDay[] = [];
+  for (const day of sorted) {
+    const dayOfWeek = new Date(day.date + 'T00:00:00').getDay();
+    if (dayOfWeek === 0 && currentWeek.length > 0) {
+      weeks.push({ contributionDays: currentWeek });
+      currentWeek = [];
+    }
+    currentWeek.push(day);
+  }
+  if (currentWeek.length > 0) {
+    weeks.push({ contributionDays: currentWeek });
+  }
 
+  return { weeks, totalContributions: total };
+}
+
+async function fetchMultiYearContributions(
+  login: string,
+  token: string,
+  accountCreated: string
+): Promise<{ weeks: ContributionWeek[]; totalContributions: number }> {
+  const now = new Date();
+  const createdDate = new Date(accountCreated);
+  const maxYears = Math.min(
+    Math.ceil((now.getTime() - createdDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)),
+    5
+  );
+
+  const calendars: { weeks: ContributionWeek[]; totalContributions: number }[] = [];
+
+  for (let i = 0; i < maxYears; i++) {
+    const to = i === 0
+      ? now
+      : new Date(now.getFullYear() - i, now.getMonth(), now.getDate());
+    const from = new Date(
+      to.getFullYear() - 1,
+      to.getMonth(),
+      to.getDate()
+    );
+
+    // Don't go before account creation
+    const effectiveFrom = from < createdDate ? createdDate : from;
+
+    const data = await graphqlQuery<UserProfileData>(
+      USER_CONTRIBUTIONS_QUERY,
+      {
+        login,
+        from: effectiveFrom.toISOString(),
+        to: to.toISOString(),
+      },
+      token
+    );
+
+    if (data.user) {
+      calendars.push(data.user.contributionsCollection.contributionCalendar);
+    }
+
+    // If we've reached account creation, stop
+    if (effectiveFrom <= createdDate) break;
+  }
+
+  return calendars.length > 0
+    ? mergeCalendars(calendars)
+    : { weeks: [], totalContributions: 0 };
+}
+
+function convertRestToGraphQLUser(
+  rest: RestUser,
+  calendar: { weeks: ContributionWeek[]; totalContributions: number },
+  events: EventsResult
+): UserProfileData {
   return {
     user: {
       name: rest.name,
@@ -182,10 +265,7 @@ function convertRestToGraphQLUser(
       createdAt: rest.created_at,
       url: rest.html_url,
       contributionsCollection: {
-        contributionCalendar: {
-          weeks: calendar.weeks,
-          totalContributions: calendar.totalContributions,
-        },
+        contributionCalendar: calendar,
         totalCommitContributions: calendar.totalContributions,
         totalIssueContributions: events.issues,
         totalPullRequestContributions: events.pullRequests,
@@ -200,30 +280,43 @@ export function useGitHubUser(login: string, token?: string) {
   return useQuery({
     queryKey: ['user', login, token ? 'auth' : 'public'],
     queryFn: async () => {
-      const cacheKey = `user:v2:${login}:${token ? 'auth' : 'public'}`;
+      const cacheKey = `user:v3:${login}:${token ? 'auth' : 'public'}`;
       const cached = getCached<UserProfileData>(cacheKey);
       if (cached) return cached;
 
       let data: UserProfileData;
 
       if (token) {
-        // Authenticated: use GraphQL for full data (max 1 year per query)
-        const now = new Date();
-        const oneYearAgo = new Date(
-          now.getFullYear() - 1,
-          now.getMonth(),
-          now.getDate()
-        );
-        data = await graphqlQuery<UserProfileData>(
-          USER_CONTRIBUTIONS_QUERY,
-          {
+        try {
+          // First get user profile for createdAt
+          const restUser = await fetch(
+            `https://api.github.com/users/${login}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ).then((r) => {
+            if (!r.ok) throw new Error('User not found');
+            return r.json() as Promise<RestUser>;
+          });
+
+          // Fetch contributions for multiple years
+          const calendar = await fetchMultiYearContributions(
             login,
-            from: oneYearAgo.toISOString(),
-            to: now.toISOString(),
-          },
-          token
-        );
-        if (!data.user) throw new Error('User not found');
+            token,
+            restUser.created_at
+          );
+
+          // Also fetch recent events for PR/issue/review counts
+          const events = await fetchContributionsFromEvents(login, token);
+
+          data = convertRestToGraphQLUser(restUser, calendar, events);
+        } catch (err) {
+          if (err instanceof Error && err.message === 'INVALID_TOKEN') {
+            clearToken();
+            throw new Error(
+              'Invalid or expired token. The token has been cleared — please add a new one.'
+            );
+          }
+          throw err;
+        }
       } else {
         // Public: use REST API + Events API
         const [restUser, events] = await Promise.all([
@@ -239,7 +332,18 @@ export function useGitHubUser(login: string, token?: string) {
           fetchContributionsFromEvents(login, token),
         ]);
 
-        data = convertRestToGraphQLUser(restUser, events);
+        const today = new Date().toISOString().substring(0, 10);
+        const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .substring(0, 10);
+
+        const calendar = buildFullCalendar(
+          events.contributions,
+          threeMonthsAgo,
+          today
+        );
+
+        data = convertRestToGraphQLUser(restUser, calendar, events);
       }
 
       setCache(cacheKey, data);
@@ -247,6 +351,6 @@ export function useGitHubUser(login: string, token?: string) {
     },
     enabled: !!login,
     staleTime: 5 * 60 * 1000,
-    retry: 1,
+    retry: false,
   });
 }
