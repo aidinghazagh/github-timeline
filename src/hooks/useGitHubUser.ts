@@ -200,7 +200,7 @@ export function useGitHubUser(login: string, token?: string) {
   return useQuery({
     queryKey: ['user', login, token ? 'auth' : 'public'],
     queryFn: async () => {
-      const cacheKey = `user:${login}:${token ? 'auth' : 'public'}`;
+      const cacheKey = `user:v2:${login}:${token ? 'auth' : 'public'}`;
       const cached = getCached<UserProfileData>(cacheKey);
       if (cached) return cached;
 

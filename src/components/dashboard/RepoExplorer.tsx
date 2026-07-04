@@ -55,7 +55,7 @@ export function RepoExplorer({ repos }: RepoExplorerProps) {
         case 'updated':
           return b.updatedAt.localeCompare(a.updatedAt);
         case 'created':
-          return b.createdAt.localeCompare(a.createdAt);
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
         case 'name':
           return a.name.localeCompare(b.name);
         default:

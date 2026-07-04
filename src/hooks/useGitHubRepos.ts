@@ -67,7 +67,7 @@ export function useGitHubRepos(login: string, token?: string) {
   return useQuery({
     queryKey: ['repos', login, token ? 'auth' : 'public'],
     queryFn: async () => {
-      const cacheKey = `repos:${login}:${token ? 'auth' : 'public'}`;
+      const cacheKey = `repos:v2:${login}:${token ? 'auth' : 'public'}`;
       const cached = getCached<GitHubRepo[]>(cacheKey);
       if (cached) return cached;
 
