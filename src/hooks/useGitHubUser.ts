@@ -236,12 +236,7 @@ export function useGitHubUser(login: string, token?: string) {
             }
             return r.json() as Promise<RestUser>;
           }),
-          fetchContributionsFromEvents(login, token).catch(() => ({
-            contributions: [],
-            pullRequests: 0,
-            issues: 0,
-            reviews: 0,
-          })),
+          fetchContributionsFromEvents(login, token),
         ]);
 
         data = convertRestToGraphQLUser(restUser, events);

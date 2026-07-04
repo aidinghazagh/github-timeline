@@ -57,6 +57,7 @@ function convertRestRepo(r: RestRepo): GitHubRepo {
       ? { name: r.language, color: LANGUAGE_COLORS[r.language] || '#999' }
       : null,
     updatedAt: r.updated_at,
+    createdAt: r.created_at,
     url: r.html_url,
     isPrivate: false,
   };

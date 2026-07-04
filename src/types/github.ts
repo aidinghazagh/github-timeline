@@ -23,6 +23,7 @@ export interface GitHubRepo {
     color: string;
   } | null;
   updatedAt: string;
+  createdAt: string;
   url: string;
   isPrivate: boolean;
 }
