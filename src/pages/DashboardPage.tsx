@@ -84,10 +84,6 @@ export function DashboardPage() {
 
   const isLoading = userQuery.isLoading || reposQuery.isLoading;
   const error = userQuery.error || reposQuery.error;
-  const hasContributions =
-    userQuery.data &&
-    userQuery.data.user.contributionsCollection.contributionCalendar
-      .totalContributions > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -213,14 +209,12 @@ export function DashboardPage() {
           >
             <ProfileCard user={userQuery.data.user} />
 
-            {hasContributions && (
-              <ContributionTimeline
-                calendar={
-                  userQuery.data.user.contributionsCollection
-                    .contributionCalendar
-                }
-              />
-            )}
+            <ContributionTimeline
+              calendar={
+                userQuery.data.user.contributionsCollection
+                  .contributionCalendar
+              }
+            />
 
             <StatsGrid
               contributions={userQuery.data.user.contributionsCollection}
@@ -228,14 +222,12 @@ export function DashboardPage() {
               createdAt={userQuery.data.user.createdAt}
             />
 
-            {hasContributions && (
-              <ContributionHeatmap
-                calendar={
-                  userQuery.data.user.contributionsCollection
-                    .contributionCalendar
-                }
-              />
-            )}
+            <ContributionHeatmap
+              calendar={
+                userQuery.data.user.contributionsCollection
+                  .contributionCalendar
+              }
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <LanguageChart repos={reposQuery.data} />

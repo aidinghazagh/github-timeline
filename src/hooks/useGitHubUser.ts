@@ -22,10 +22,7 @@ interface RestUser {
 interface GitHubEvent {
   type: string;
   created_at: string;
-  payload: {
-    commits?: { sha: string }[];
-    action?: string;
-  };
+  payload: Record<string, unknown>;
 }
 
 interface EventsResult {
@@ -65,13 +62,13 @@ async function fetchContributionsFromEvents(
       const date = event.created_at.substring(0, 10);
 
       switch (event.type) {
-        case 'PushEvent':
-          dateCountMap.set(
-            date,
-            (dateCountMap.get(date) || 0) +
-              (event.payload.commits?.length || 1)
-          );
+        case 'PushEvent': {
+          const commits = Array.isArray(event.payload.commits)
+            ? event.payload.commits.length
+            : 1;
+          dateCountMap.set(date, (dateCountMap.get(date) || 0) + commits);
           break;
+        }
         case 'PullRequestEvent':
           pullRequests++;
           dateCountMap.set(date, (dateCountMap.get(date) || 0) + 1);

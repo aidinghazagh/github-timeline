@@ -25,7 +25,7 @@ const timeRanges: { value: TimeRange; label: string }[] = [
 ];
 
 export function ContributionTimeline({ calendar }: ContributionTimelineProps) {
-  const [range, setRange] = useState<TimeRange>('1y');
+  const [range, setRange] = useState<TimeRange>('all');
 
   const chartData = useMemo(() => {
     const allDays = calendar.weeks
