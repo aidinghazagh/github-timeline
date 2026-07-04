@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, BarChart3, GitBranch, Star } from 'lucide-react';
+import { BarChart3, GitBranch, Star } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { SearchBar } from '@/components/shared/SearchBar';
 import { useRecentSearches } from '@/hooks/useRecentSearches';
@@ -20,7 +20,7 @@ export function Hero() {
   ];
 
   return (
-    <section className="relative min-h-[85vh] flex items-center justify-center px-4">
+    <section className="relative min-h-screen flex items-center justify-center px-4">
       <div className="relative z-10 max-w-3xl mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -43,8 +43,10 @@ export function Hero() {
           className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground mb-6"
         >
           Visualize Your{' '}
-          <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
-            GitHub Journey
+          <span className="relative inline-block">
+            <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              GitHub Journey
+            </span>
           </span>
         </motion.h1>
 
@@ -95,16 +97,6 @@ export function Hero() {
               <p className="text-xs text-muted-foreground">{desc}</p>
             </div>
           ))}
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="mt-12 flex items-center justify-center gap-2 text-sm text-muted-foreground"
-        >
-          <ArrowRight className="h-4 w-4 animate-bounce" />
-          Scroll down to see an example dashboard
         </motion.div>
       </div>
     </section>
