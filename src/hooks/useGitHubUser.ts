@@ -207,10 +207,10 @@ export function useGitHubUser(login: string, token?: string) {
       let data: UserProfileData;
 
       if (token) {
-        // Authenticated: use GraphQL for full data
+        // Authenticated: use GraphQL for full data (max 1 year per query)
         const now = new Date();
-        const fiveYearsAgo = new Date(
-          now.getFullYear() - 5,
+        const oneYearAgo = new Date(
+          now.getFullYear() - 1,
           now.getMonth(),
           now.getDate()
         );
@@ -218,7 +218,7 @@ export function useGitHubUser(login: string, token?: string) {
           USER_CONTRIBUTIONS_QUERY,
           {
             login,
-            from: fiveYearsAgo.toISOString(),
+            from: oneYearAgo.toISOString(),
             to: now.toISOString(),
           },
           token
