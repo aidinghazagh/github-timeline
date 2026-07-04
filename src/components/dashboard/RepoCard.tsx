@@ -1,4 +1,4 @@
-import { Star, GitFork, Clock } from 'lucide-react';
+import { Star, GitFork, Clock, CalendarPlus } from 'lucide-react';
 import { timeAgo } from '@/utils/formatters';
 import type { GitHubRepo } from '@/types/github';
 
@@ -33,7 +33,7 @@ export function RepoCard({ repo }: RepoCardProps) {
         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{repo.description}</p>
       )}
 
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <Star className="h-3.5 w-3.5" />
           {repo.stargazerCount.toLocaleString()}
@@ -42,9 +42,18 @@ export function RepoCard({ repo }: RepoCardProps) {
           <GitFork className="h-3.5 w-3.5" />
           {repo.forkCount.toLocaleString()}
         </span>
+      </div>
+
+      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+        {repo.createdAt && (
+          <span className="flex items-center gap-1">
+            <CalendarPlus className="h-3 w-3" />
+            Created {timeAgo(repo.createdAt)}
+          </span>
+        )}
         <span className="flex items-center gap-1 ml-auto">
-          <Clock className="h-3.5 w-3.5" />
-          {timeAgo(repo.updatedAt)}
+          <Clock className="h-3 w-3" />
+          Updated {timeAgo(repo.updatedAt)}
         </span>
       </div>
     </a>

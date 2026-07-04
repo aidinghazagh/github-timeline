@@ -65,7 +65,15 @@ export function ContributionTimeline({ calendar }: ContributionTimelineProps) {
             <span className="text-foreground font-semibold">
               {chartData.totalInRange.toLocaleString()}
             </span>{' '}
-            contributions in the last {rangeLabel}
+            contributions
+            {chartData.points.length > 0 && (
+              <span>
+                {' '}from{' '}
+                {new Date(chartData.points[0].date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {' '}to{' '}
+                {new Date(chartData.points[chartData.points.length - 1].date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border bg-muted p-0.5">
