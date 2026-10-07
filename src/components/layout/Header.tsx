@@ -19,9 +19,11 @@ export function Header() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <a
-              href="https://github.com"
+              href="https://github.com/aidinghazagh/github-timeline"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="CommitScope source code on GitHub"
+              title="Source code"
               className="flex items-center justify-center rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               <ExternalLink className="h-4 w-4" />

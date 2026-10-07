@@ -1,9 +1,11 @@
 import { GITHUB_API_BASE } from '@/utils/constants';
+import { errorFromResponse } from './errors';
 
-export async function restGet<T>(
-  endpoint: string,
-  token?: string
-): Promise<T> {
+/**
+ * GET a REST endpoint. Callers must encode any user-supplied path segments
+ * (see `userPath`).
+ */
+export async function restGet<T>(endpoint: string, token?: string): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
   };
@@ -12,12 +14,10 @@ export async function restGet<T>(
   }
 
   const res = await fetch(`${GITHUB_API_BASE}${endpoint}`, { headers });
-
-  if (!res.ok) {
-    if (res.status === 404) throw new Error('User not found');
-    if (res.status === 403) throw new Error('Rate limit exceeded. Add a Personal Access Token for higher limits.');
-    throw new Error(`GitHub API error (${res.status})`);
-  }
-
+  if (!res.ok) throw errorFromResponse(res, !!token);
   return res.json() as Promise<T>;
+}
+
+export function userPath(login: string, suffix = ''): string {
+  return `/users/${encodeURIComponent(login)}${suffix}`;
 }

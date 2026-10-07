@@ -12,12 +12,14 @@ export function ThemeToggle() {
   ];
 
   return (
-    <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted p-0.5">
+    <div role="group" aria-label="Theme" className="flex items-center gap-0.5 rounded-lg border border-border bg-muted p-0.5">
       {options.map(({ value, icon: Icon, label }) => (
         <button
           key={value}
           onClick={() => setTheme(value)}
           title={label}
+          aria-label={`${label} theme`}
+          aria-pressed={theme === value}
           className={cn(
             'rounded-md p-1.5 transition-all',
             theme === value

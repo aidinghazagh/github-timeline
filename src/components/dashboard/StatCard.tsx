@@ -6,11 +6,12 @@ interface StatCardProps {
   label: string;
   value: number;
   icon: React.ReactNode;
+  hint?: string;
   delay?: number;
   className?: string;
 }
 
-export function StatCard({ label, value, icon, delay = 0, className }: StatCardProps) {
+export function StatCard({ label, value, icon, hint, delay = 0, className }: StatCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -23,13 +24,14 @@ export function StatCard({ label, value, icon, delay = 0, className }: StatCardP
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-muted-foreground text-sm">{label}</span>
-        <div className="text-muted-foreground group-hover:text-primary transition-colors">
+        <div className="text-muted-foreground group-hover:text-primary transition-colors" aria-hidden>
           {icon}
         </div>
       </div>
       <p className="text-3xl font-bold text-foreground">
         <AnimatedCounter value={value} />
       </p>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </motion.div>
   );
 }

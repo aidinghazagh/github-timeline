@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MapPin, Building2, LinkIcon, Calendar, Users, GitFork } from 'lucide-react';
+import { MapPin, Building2, LinkIcon, Calendar, Users } from 'lucide-react';
 import { formatDate } from '@/utils/formatters';
 import type { UserProfileData } from '@/types/github';
 
@@ -11,7 +11,6 @@ export function ProfileCard({ user }: ProfileCardProps) {
   const stats = [
     { label: 'Followers', value: user.followers.totalCount },
     { label: 'Following', value: user.following.totalCount },
-    { label: 'Repos', value: user.repositories.totalCount },
   ];
 
   const details = [
@@ -46,7 +45,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mb-4">
             {stats.map(({ label, value }) => (
               <div key={label} className="flex items-center gap-1.5 text-sm">
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Users className="h-4 w-4 text-muted-foreground" aria-hidden />
                 <span className="font-semibold text-foreground">{value.toLocaleString()}</span>
                 <span className="text-muted-foreground">{label}</span>
               </div>
@@ -59,10 +58,11 @@ export function ProfileCard({ user }: ProfileCardProps) {
                 key={label}
                 className="flex items-center gap-1.5 text-sm text-muted-foreground"
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+                <span className="sr-only">{label}:</span>
                 {isLink ? (
                   <a
-                    href={value!.startsWith('http') ? value! : `https://${value}`}
+                    href={/^https?:\/\//i.test(value!) ? value! : `https://${value}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"

@@ -27,13 +27,30 @@ export function LanguageChart({ repos }: LanguageChartProps) {
       }
     }
 
-    return Array.from(langMap.entries())
+    const sorted = Array.from(langMap.entries())
       .map(([name, { count, color }]) => ({ name, value: count, color }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
+      .sort((a, b) => b.value - a.value);
+    // Keep percentages honest: everything beyond the top 7 is grouped as "Other".
+    if (sorted.length <= 8) return sorted;
+    const other = sorted.slice(7).reduce((s, d) => s + d.value, 0);
+    return [...sorted.slice(0, 7), { name: 'Other', value: other, color: '#8b949e' }];
   }, [repos]);
 
   const total = languageData.reduce((s, d) => s + d.value, 0);
+
+  if (total === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="rounded-xl border border-border bg-card p-6"
+      >
+        <h3 className="text-lg font-semibold text-foreground mb-1">Language Analytics</h3>
+        <p className="text-sm text-muted-foreground">No language data for these repositories.</p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -43,7 +60,7 @@ export function LanguageChart({ repos }: LanguageChartProps) {
       className="rounded-xl border border-border bg-card p-6"
     >
       <h3 className="text-lg font-semibold text-foreground mb-1">Language Analytics</h3>
-      <p className="text-sm text-muted-foreground mb-6">Top languages across your repositories</p>
+      <p className="text-sm text-muted-foreground mb-6">Primary language of each public repository</p>
 
       <div className="flex flex-col sm:flex-row items-center gap-6">
         <div className="h-48 w-48 shrink-0">
@@ -84,6 +101,7 @@ export function LanguageChart({ repos }: LanguageChartProps) {
           {languageData.map((lang, i) => (
             <div key={lang.name} className="flex items-center gap-2">
               <div
+                aria-hidden
                 className="w-3 h-3 rounded-full shrink-0"
                 style={{ backgroundColor: lang.color || CHART_COLORS[i] }}
               />

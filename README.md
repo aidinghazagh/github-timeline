@@ -28,24 +28,25 @@ A beautiful, production-ready GitHub analytics dashboard that tells the story of
 ### Public Mode (no token needed)
 - Enter any GitHub username
 - Uses REST API + Events API
-- Shows ~90 days of recent activity
+- Shows the last 90 days of public activity (GitHub's event feed is capped at 90 days / 300 events)
+- Commit, PR, issue and review counts are estimates from that feed
 - No authentication required
 
 ### Enhanced Mode (with Personal Access Token)
-- Full contribution history (up to 5 years)
-- Accurate PR, issue, and review counts
+- Full contribution history, back to account creation
+- Exact all-time commit, PR, issue and review counts from GitHub
 - Complete yearly timeline data
-- Token stays in your browser — only sent to GitHub's API
+- The token is only sent to GitHub's API. It's kept in session storage (cleared when the tab closes) unless you tick "Remember on this device"
+- If GitHub rejects the token, it's removed and the dashboard falls back to public mode
 
 ---
 
 ## Getting a GitHub Token
 
-1. Go to [github.com/settings/tokens](https://github.com/settings/tokens)
-2. Click **Generate new token** → **Generate new token (classic)**
-3. Give it a name (e.g. "CommitScope")
-4. Check the `read:user` scope
-5. Copy and paste the token in the dashboard
+1. Go to [New fine-grained token](https://github.com/settings/personal-access-tokens/new)
+2. Name it (e.g. "CommitScope") and pick a short expiration
+3. Keep the default **Public repositories (read-only)** access — no extra permissions are needed
+4. Generate the token, then paste it in the dashboard
 
 ---
 
@@ -68,7 +69,7 @@ A beautiful, production-ready GitHub analytics dashboard that tells the story of
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20.19+ (required by Vite 8)
 - npm
 
 ### Installation
@@ -93,6 +94,13 @@ Opens at `http://localhost:5173/github-timeline/`
 npm run build
 ```
 
+### Lint and Test
+
+```bash
+npm run lint
+npm test
+```
+
 ### Preview Production Build
 
 ```bash
@@ -107,8 +115,11 @@ This project deploys automatically to **GitHub Pages** on every push to `main`.
 
 The GitHub Actions workflow:
 1. Installs dependencies
-2. Builds the project with Vite
-3. Deploys to GitHub Pages
+2. Runs lint and tests
+3. Builds the project with Vite
+4. Deploys to GitHub Pages
+
+A separate CI workflow runs lint, tests and the build on every pull request.
 
 ### Manual Deployment
 
@@ -124,6 +135,8 @@ The GitHub Actions workflow:
 src/
 ├── api/                    # API clients and caching
 │   ├── cache.ts            # localStorage cache with TTL
+│   ├── contributions.ts    # Year windows, merging, event parsing
+│   ├── errors.ts           # Typed GitHub API errors
 │   ├── github.ts           # REST API client
 │   ├── graphql.ts          # GraphQL client
 │   └── queries.ts          # GraphQL query strings
@@ -155,7 +168,8 @@ src/
 │   ├── useGitHubRepos.ts
 │   ├── useGitHubUser.ts
 │   ├── useRecentSearches.ts
-│   └── useTheme.ts
+│   ├── useTheme.ts
+│   └── useToken.ts
 ├── pages/                  # Page components
 │   ├── DashboardPage.tsx
 │   ├── HomePage.tsx
@@ -165,8 +179,10 @@ src/
 ├── utils/                  # Utility functions
 │   ├── cn.ts
 │   ├── constants.ts
+│   ├── dates.ts            # Local-time date, week and streak helpers
 │   ├── formatters.ts
-│   └── colors.ts
+│   ├── languageColors.ts
+│   └── validation.ts
 ├── styles/
 │   └── globals.css
 ├── App.tsx
@@ -181,12 +197,12 @@ src/
 | Mode | User Profile | Repos | Contributions |
 |---|---|---|---|
 | **Public** | REST API | REST API | Events API (~90 days) |
-| **Token** | GraphQL | GraphQL | GraphQL (up to 5 years) |
+| **Token** | GraphQL | GraphQL | GraphQL (full history, one-year windows batched into parallel requests) |
 
 ### Caching
-- All API responses are cached in localStorage
-- Cache TTL: 1 hour
-- Stale data shown immediately, revalidated in background
+- API responses are cached in localStorage for 1 hour, keyed by username and a fingerprint of the token (never the token itself)
+- Cached data is shown immediately; "Try again" always fetches fresh data
+- Expired entries are pruned on startup and when storage is full
 
 ### Rate Limits
 - **Public REST**: 60 requests/hour
