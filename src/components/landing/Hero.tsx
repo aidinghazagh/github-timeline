@@ -6,11 +6,11 @@ import { useRecentSearches } from '@/hooks/useRecentSearches';
 
 export function Hero() {
   const navigate = useNavigate();
-  const { searches, addSearch, toggleFavorite, removeSearch } = useRecentSearches();
+  const { searches, toggleFavorite, removeSearch } = useRecentSearches();
 
+  // The dashboard records the search in recent history.
   function handleSearch(username: string) {
-    addSearch(username);
-    navigate(`/?user=${username}`);
+    navigate(`/?user=${encodeURIComponent(username)}`);
   }
 
   const features = [
@@ -20,7 +20,7 @@ export function Hero() {
   ];
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center px-4">
+    <section className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">
       <div className="relative z-10 max-w-3xl mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

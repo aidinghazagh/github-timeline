@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { THEME_KEY } from '@/utils/constants';
 
-type Theme = 'dark' | 'light' | 'system';
+export type Theme = 'dark' | 'light' | 'system';
 
 function getSystemTheme(): 'dark' | 'light' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -12,14 +12,23 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', resolved === 'dark');
 }
 
+function readTheme(): Theme {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+/** Apply the saved theme before React renders, to avoid a flash. */
+export function initTheme() {
+  applyTheme(readTheme());
+}
+
+/** Use from a single always-mounted component (ThemeToggle in the Header). */
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    try {
-      return (localStorage.getItem(THEME_KEY) as Theme) || 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
+  const [theme, setThemeState] = useState<Theme>(readTheme);
 
   useEffect(() => {
     applyTheme(theme);
@@ -36,7 +45,9 @@ export function useTheme() {
     setThemeState(t);
     try {
       localStorage.setItem(THEME_KEY, t);
-    } catch {}
+    } catch {
+      // storage unavailable
+    }
   }, []);
 
   return { theme, setTheme };

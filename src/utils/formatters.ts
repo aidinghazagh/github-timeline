@@ -1,11 +1,13 @@
-export function formatNumber(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k`;
-  return num.toLocaleString();
+import { parseDateStr, toLocalDateStr } from './dates';
+import type { TimeRange } from '@/types/github';
+
+/** Accepts full ISO timestamps or date-only YYYY-MM-DD strings (read as local dates). */
+export function toDate(dateStr: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? parseDateStr(dateStr) : new Date(dateStr);
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
+  return toDate(dateStr).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -34,10 +36,7 @@ export function getHeatmapLevel(count: number): number {
   return 4;
 }
 
-export function clampDateRange(
-  days: { date: string; count: number }[],
-  range: string
-): { date: string; count: number }[] {
+export function clampDateRange<T extends { date: string }>(days: T[], range: TimeRange): T[] {
   const now = new Date();
   let cutoff: Date;
   switch (range) {
@@ -45,7 +44,7 @@ export function clampDateRange(
       cutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
       break;
     case '90d':
-      cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
       break;
     case '1y':
       cutoff = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
@@ -53,5 +52,6 @@ export function clampDateRange(
     default:
       return days;
   }
-  return days.filter((d) => new Date(d.date) >= cutoff);
+  const cutoffStr = toLocalDateStr(cutoff);
+  return days.filter((d) => d.date >= cutoffStr);
 }

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { RepoCard } from './RepoCard';
+import { EmptyState } from '@/components/shared/EmptyState';
 import type { GitHubRepo, SortOption } from '@/types/github';
 
 interface RepoExplorerProps {
@@ -22,12 +23,17 @@ export function RepoExplorer({ repos }: RepoExplorerProps) {
   const [sort, setSort] = useState<SortOption>('stars');
   const [langFilter, setLangFilter] = useState<string | null>(null);
 
+  // Most-used languages first.
   const languages = useMemo(() => {
-    const langs = new Set<string>();
+    const counts = new Map<string, number>();
     repos.forEach((r) => {
-      if (r.primaryLanguage) langs.add(r.primaryLanguage.name);
+      if (r.primaryLanguage) {
+        counts.set(r.primaryLanguage.name, (counts.get(r.primaryLanguage.name) ?? 0) + 1);
+      }
     });
-    return Array.from(langs).sort();
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name]) => name);
   }, [repos]);
 
   const filtered = useMemo(() => {
@@ -74,26 +80,28 @@ export function RepoExplorer({ repos }: RepoExplorerProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h3 className="text-lg font-semibold text-foreground">Repository Explorer</h3>
-          <p className="text-sm text-muted-foreground">{repos.length} public repositories</p>
+          <p className="text-sm text-muted-foreground">{repos.length} public repositories (excluding forks)</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-initial">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search repos..."
+              aria-label="Search repositories"
               className="w-full sm:w-48 rounded-lg border border-border bg-background pl-9 pr-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
             />
           </div>
 
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-0.5" role="group" aria-label="Sort by">
             {sortOptions.map(({ value, label }) => (
               <button
                 key={value}
                 onClick={() => setSort(value)}
+                aria-pressed={sort === value}
                 className={cn(
                   'rounded-md px-2 py-1 text-xs font-medium transition-colors',
                   sort === value
@@ -109,9 +117,10 @@ export function RepoExplorer({ repos }: RepoExplorerProps) {
       </div>
 
       {/* Language filters */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Filter by language">
         <button
           onClick={() => setLangFilter(null)}
+          aria-pressed={!langFilter}
           className={cn(
             'rounded-full px-3 py-1 text-xs font-medium transition-colors',
             !langFilter
@@ -125,6 +134,7 @@ export function RepoExplorer({ repos }: RepoExplorerProps) {
           <button
             key={lang}
             onClick={() => setLangFilter(lang === langFilter ? null : lang)}
+            aria-pressed={langFilter === lang}
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition-colors',
               langFilter === lang
@@ -144,10 +154,15 @@ export function RepoExplorer({ repos }: RepoExplorerProps) {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-12">
-          <SlidersHorizontal className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">No repositories match your filters</p>
-        </div>
+        <EmptyState
+          title={repos.length === 0 ? 'No public repositories' : 'No matches'}
+          description={
+            repos.length === 0
+              ? 'This user has no public, non-fork repositories yet.'
+              : 'No repositories match your search and filters.'
+          }
+          icon={<SlidersHorizontal className="mx-auto h-8 w-8" />}
+        />
       )}
     </motion.div>
   );

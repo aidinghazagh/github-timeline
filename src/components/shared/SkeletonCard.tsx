@@ -18,7 +18,7 @@ export function SkeletonCard({ className, lines = 3 }: SkeletonCardProps) {
         <div
           key={i}
           className="h-3 rounded bg-muted mb-2"
-          style={{ width: `${60 + Math.random() * 30}%` }}
+          style={{ width: `${90 - ((i * 13) % 30)}%` }}
         />
       ))}
     </div>

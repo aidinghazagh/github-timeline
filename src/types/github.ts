@@ -1,18 +1,3 @@
-export interface GitHubUser {
-  login: string;
-  name: string | null;
-  avatar_url: string;
-  bio: string | null;
-  followers: number;
-  following: number;
-  public_repos: number;
-  company: string | null;
-  blog: string | null;
-  location: string | null;
-  created_at: string;
-  html_url: string;
-}
-
 export interface GitHubRepo {
   name: string;
   description: string | null;
@@ -67,6 +52,12 @@ export interface UserProfileData {
     createdAt: string;
     url: string;
     contributionsCollection: ContributionsCollection;
+  };
+  /** Which data source was used and what period the contribution data covers. */
+  coverage: {
+    mode: 'full' | 'recent';
+    from: string;
+    to: string;
   };
 }
 

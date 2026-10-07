@@ -56,8 +56,6 @@ export function ContributionTimeline({ calendar, hasToken }: ContributionTimelin
     return { points, totalInRange };
   }, [calendar, range]);
 
-  const rangeLabel = timeRanges.find((r) => r.value === range)?.label || range;
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -83,11 +81,12 @@ export function ContributionTimeline({ calendar, hasToken }: ContributionTimelin
             )}
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border bg-muted p-0.5">
+        <div className="flex gap-1 rounded-lg border border-border bg-muted p-0.5" role="group" aria-label="Time range">
           {timeRanges.map(({ value, label }) => (
             <button
               key={value}
               onClick={() => setRange(value)}
+              aria-pressed={range === value}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                 range === value

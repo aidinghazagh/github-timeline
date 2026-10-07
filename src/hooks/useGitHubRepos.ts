@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { graphqlQuery } from '@/api/graphql';
-import { getCached, setCache } from '@/api/cache';
+import { restGet, userPath } from '@/api/github';
+import { getCached, setCache, tokenFingerprint } from '@/api/cache';
 import { USER_REPOS_QUERY } from '@/api/queries';
+import { withTokenCheck } from '@/api/errors';
+import { CACHE_TTL_MS } from '@/utils/constants';
+import { languageColor } from '@/utils/languageColors';
 import type { GitHubRepo } from '@/types/github';
 
 interface ReposResponse {
@@ -10,7 +14,7 @@ interface ReposResponse {
       pageInfo: { hasNextPage: boolean; endCursor: string | null };
       nodes: GitHubRepo[];
     };
-  };
+  } | null;
 }
 
 interface RestRepo {
@@ -25,28 +29,6 @@ interface RestRepo {
   fork: boolean;
 }
 
-const LANGUAGE_COLORS: Record<string, string> = {
-  JavaScript: '#f1e05a',
-  TypeScript: '#3178c6',
-  Python: '#3572A5',
-  Java: '#b07219',
-  Go: '#00ADD8',
-  Rust: '#dea584',
-  C: '#555555',
-  'C++': '#f34b7d',
-  'C#': '#178600',
-  Ruby: '#701516',
-  PHP: '#4F5D95',
-  Swift: '#F05138',
-  Kotlin: '#A97BFF',
-  Dart: '#00B4AB',
-  Shell: '#89e051',
-  HTML: '#e34c26',
-  CSS: '#563d7c',
-  Vue: '#41b883',
-  Svelte: '#ff3e00',
-};
-
 function convertRestRepo(r: RestRepo): GitHubRepo {
   return {
     name: r.name,
@@ -54,7 +36,7 @@ function convertRestRepo(r: RestRepo): GitHubRepo {
     stargazerCount: r.stargazers_count,
     forkCount: r.forks_count,
     primaryLanguage: r.language
-      ? { name: r.language, color: LANGUAGE_COLORS[r.language] || '#999' }
+      ? { name: r.language, color: languageColor(r.language) }
       : null,
     updatedAt: r.updated_at,
     createdAt: r.created_at,
@@ -63,59 +45,58 @@ function convertRestRepo(r: RestRepo): GitHubRepo {
   };
 }
 
-export function useGitHubRepos(login: string, token?: string) {
+async function fetchReposGraphQL(login: string, token: string): Promise<GitHubRepo[]> {
+  const repos: GitHubRepo[] = [];
+  let cursor: string | null = null;
+  let hasNext = true;
+  while (hasNext) {
+    const resp: ReposResponse = await graphqlQuery<ReposResponse>(
+      USER_REPOS_QUERY,
+      { login, first: 100, after: cursor },
+      token
+    );
+    if (!resp.user) break;
+    repos.push(...resp.user.repositories.nodes);
+    hasNext = resp.user.repositories.pageInfo.hasNextPage;
+    cursor = resp.user.repositories.pageInfo.endCursor;
+  }
+  return repos;
+}
+
+async function fetchReposRest(login: string): Promise<GitHubRepo[]> {
+  const repos: RestRepo[] = [];
+  for (let page = 1; ; page++) {
+    const data = await restGet<RestRepo[]>(
+      userPath(login, `/repos?per_page=100&page=${page}&type=owner`)
+    );
+    repos.push(...data);
+    if (data.length < 100) break;
+  }
+  // Forks are excluded in both modes so counts match.
+  return repos
+    .filter((r) => !r.fork)
+    .map(convertRestRepo)
+    .sort((a, b) => b.stargazerCount - a.stargazerCount);
+}
+
+export function useGitHubRepos(login: string, token?: string, onInvalidToken?: () => void) {
+  const fingerprint = tokenFingerprint(token);
+  const cacheKey = `repos:v3:${login.toLowerCase()}:${fingerprint}`;
+
   return useQuery({
-    queryKey: ['repos', login, token ? 'auth' : 'public'],
+    queryKey: ['repos', login.toLowerCase(), fingerprint],
     queryFn: async () => {
-      const cacheKey = `repos:v2:${login}:${token ? 'auth' : 'public'}`;
-      const cached = getCached<GitHubRepo[]>(cacheKey);
-      if (cached) return cached;
-
-      let repos: GitHubRepo[];
-
-      if (token) {
-        // Authenticated: use GraphQL
-        const allRepos: GitHubRepo[] = [];
-        let cursor: string | null = null;
-        let hasNext = true;
-
-        while (hasNext) {
-          const resp: ReposResponse = await graphqlQuery<ReposResponse>(
-            USER_REPOS_QUERY,
-            { login, first: 100, after: cursor },
-            token
-          );
-          allRepos.push(...resp.user.repositories.nodes);
-          hasNext = resp.user.repositories.pageInfo.hasNextPage;
-          cursor = resp.user.repositories.pageInfo.endCursor;
-        }
-        repos = allRepos;
-      } else {
-        // Public: use REST API (paginated)
-        const allRepos: RestRepo[] = [];
-        let page = 1;
-        while (true) {
-          const res = await fetch(
-            `https://api.github.com/users/${login}/repos?per_page=100&page=${page}&sort=stars&direction=desc`
-          );
-          if (!res.ok) {
-            if (res.status === 403)
-              throw new Error('Rate limit exceeded. Try again later or add a token.');
-            throw new Error(`GitHub API error (${res.status})`);
-          }
-          const data: RestRepo[] = await res.json();
-          allRepos.push(...data);
-          if (data.length < 100) break;
-          page++;
-        }
-        repos = allRepos.filter((r) => !r.fork).map(convertRestRepo);
-      }
-
+      const repos = await withTokenCheck(
+        () => (token ? fetchReposGraphQL(login, token) : fetchReposRest(login)),
+        onInvalidToken
+      );
       setCache(cacheKey, repos);
       return repos;
     },
+    initialData: () => getCached<GitHubRepo[]>(cacheKey)?.data,
+    initialDataUpdatedAt: () => getCached<GitHubRepo[]>(cacheKey)?.timestamp,
+    staleTime: CACHE_TTL_MS,
     enabled: !!login,
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
+    retry: false,
   });
 }
